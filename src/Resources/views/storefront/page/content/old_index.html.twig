@@ -1,0 +1,47 @@
+{# custom/plugins/PaulAiChat/src/Resources/views/storefront/page/content/index.html.twig #}
+
+{% sw_extends '@Storefront/storefront/page/content/index.html.twig' %}
+
+{% block base_main_inner %}
+
+    {{ parent() }}
+
+    {# Root for the JS plugin with config from SystemConfig #}
+    <div paul-ai-chat-root
+         data-chat-url="{{ config('PaulAiChat.config.chatUrl')|e }}"
+         data-button-label="{{ config('PaulAiChat.config.buttonLabel')|default('Chat')|e }}"
+         data-auto-open="{{ config('PaulAiChat.config.autoOpen') ? '1' : '0' }}"
+         data-position="{{ config('PaulAiChat.config.position')|default('bottom-right')|e }}">
+    </div>
+
+    <!-- Button trigger modal -->
+    <button type="button"
+            class="btn btn-primary"
+            id="open-chat-modal"
+            data-bs-toggle="modal"
+            data-bs-target="#paulAiChatModal">
+        {{ config('PaulAiChat.config.buttonLabel')|default('Chat') }}
+    </button>  
+    
+    <!-- Modal -->
+    <div class="modal fade" id="paulAiChatModal" tabindex="-1" aria-labelledby="paulAiChatModalLabel" aria-hidden="true">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="paulAiChatModalLabel">Chat</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body">
+              <form id="chat-form">
+                  <input type="text" id="chat-input" class="form-control" placeholder="{{ config('PaulAiChat.config.welcomeMessage')|default('Hi! How can we help?') }}">
+                  <button type="submit" class="btn btn-primary mt-3" id="chat-send-btn">Send</button>
+              </form>
+              <div id="chat-response" class="mt-3"></div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+          </div>
+        </div>
+      </div>
+    </div>
+{% endblock %}

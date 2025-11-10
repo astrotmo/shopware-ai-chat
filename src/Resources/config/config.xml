@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8"?>
+<config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:noNamespaceSchemaLocation="https://raw.githubusercontent.com/shopware/platform/trunk/src/Core/System/SystemConfig/Schema/config.xsd">
+
+  <card>
+    <title>AI Chat Widget</title>
+
+    <input-field type="url">
+      <name>chatUrl</name>
+      <label>Chat server URL (iframe)</label>
+      <placeholder>https://your-chat-app.example/chat</placeholder>
+    </input-field>
+
+    <input-field type="text">
+      <name>welcomeMessage</name>
+      <label>Welcome message</label>
+      <placeholder>Hi! How can we help?</placeholder>
+      <defaultValue>Hi! How can we help?</defaultValue>
+    </input-field>
+
+    <input-field type="bool">
+      <name>autoOpen</name>
+      <label>Auto-open on first visit?</label>
+      <defaultValue>false</defaultValue>
+    </input-field>
+
+    <input-field type="text">
+      <name>buttonLabel</name>
+      <label>Button label</label>
+      <placeholder>Chat</placeholder>
+      <defaultValue>Chat</defaultValue>
+    </input-field>
+
+    <input-field type="single-select">
+      <name>position</name>
+      <label>Position</label>
+      <options>
+        <option>
+          <id>bottom-right</id>
+          <name>bottom-right</name>
+        </option>
+        <option>
+          <id>bottom-left</id>
+          <name>bottom-left</name>
+        </option>
+      </options>
+      <defaultValue>bottom-right</defaultValue>
+    </input-field>
+
+  </card>
+</config>

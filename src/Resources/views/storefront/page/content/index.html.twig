@@ -1,0 +1,14 @@
+{# custom/plugins/PaulAiChat/src/Resources/views/storefront/page/content/index.html.twig #}
+{% sw_extends '@Storefront/storefront/page/content/index.html.twig' %}
+
+{% block base_main_inner %}
+    {{ parent() }}
+
+    {# JS will inject the floating button & chat panel here. #}
+    <div paul-ai-chat-root
+         data-chat-url="{{ config('PaulAiChat.config.chatUrl')|e }}"
+         data-button-label="{{ config('PaulAiChat.config.buttonLabel')|default('Chat')|e }}"
+         data-auto-open="{{ config('PaulAiChat.config.autoOpen') ? '1' : '0' }}"
+         data-position="{{ config('PaulAiChat.config.position')|default('bottom-left')|e }}">
+    </div>
+{% endblock %}

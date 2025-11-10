@@ -1,0 +1,27 @@
+{
+    "name": "paul-ai-chat/paul-ai-chat",
+    "description": "Floating chat widget for Shopware 6 storefront",
+    "type": "shopware-platform-plugin",
+    "version": "1.0.0",
+    "license": "MIT",
+    "require": {
+        "shopware/core": "~6.7.0"
+    },
+    "extra": {
+        "shopware-plugin-class": "Paul\\AiChat\\PaulAiChat",
+        "label": {
+            "de-DE": "AI Chat Plugin",
+            "en-GB": "AI Chat Plugin"
+        }
+    },
+    "autoload": {
+        "psr-4": {
+            "Paul\\AiChat\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Paul\\AiChat\\Tests\\": "tests/"
+        }
+    }
+}
