@@ -9,12 +9,17 @@ export default class AiChatPlugin extends Base {
         this.buttonLabel = buttonLabel || 'Chat';
         this.autoOpen = autoOpen === '1';
         this.position = (position || 'bottom-left').toLowerCase(); // 'bottom-left' | 'bottom-right'
+        this.preferredPosition = this.position; // <-- remember configured corner
+
 
         // Build floating UI
         this.buildUi();
 
         // Restore previous session (so you can navigate the shop and keep chat)
         this.restoreHistory();
+
+        // Avoid collisions
+        this.enableSmartAvoidance();
 
         // Open automatically if desired
         if (this.autoOpen) this.open();
@@ -57,14 +62,24 @@ export default class AiChatPlugin extends Base {
         title.className = 'paul-ai-chat-title';
         title.textContent = 'Support Chat';
 
+        const clearBtn = document.createElement('button');
+        clearBtn.type = 'button';
+        clearBtn.className = 'paul-ai-chat-clear';
+        clearBtn.setAttribute('aria-label', 'Clear chat');
+        clearBtn.innerHTML = '🗑️';
+        clearBtn.title = 'Clear chat history';
+        clearBtn.addEventListener('click', () => this.clearHistory());
+
         const close = document.createElement('button');
         close.type = 'button';
         close.className = 'paul-ai-chat-close';
         close.setAttribute('aria-label', 'Close chat');
         close.innerHTML = '×';
+        close.title = 'Close chat';
         close.addEventListener('click', () => this.close());
 
         header.appendChild(title);
+        header.appendChild(clearBtn);
         header.appendChild(close);
 
         // Messages list
@@ -213,8 +228,136 @@ export default class AiChatPlugin extends Base {
         }
     }
 
+    clearHistory() {
+        const key = this.storageKey();
+        sessionStorage.removeItem(key);
+        this.messagesEl.innerHTML = '';
+        this.appendBubble('Chat history cleared.', 'bot');
+    }
+
     readJson(key) {
         try { return JSON.parse(sessionStorage.getItem(key) || 'null'); }
         catch { return null; }
+    }
+
+    currentPosition() {
+    return this.position;
+    }
+
+    setPosition(pos) {
+        // remove both corner classes, then apply new one
+        this.wrapper.classList.remove('paul-ai-chat-bottom-left', 'paul-ai-chat-bottom-right');
+        if (pos === 'bottom-right') {
+            this.wrapper.classList.add('paul-ai-chat-bottom-right');
+        } else {
+            pos = 'bottom-left';
+            this.wrapper.classList.add('paul-ai-chat-bottom-left');
+        }
+        this.position = pos;
+    }
+
+    getActiveBoxEl() {
+        // If panel is visible, avoid based on the panel; otherwise based on the floating button.
+        const panelVisible = this.panel && this.panel.style.display !== 'none';
+        return panelVisible ? this.panel : this.fab;
+    }
+
+    rectsOverlap(a, b, margin = 8) {
+        // add a small margin so we avoid near-collisions
+        return !(
+            a.right < b.left + margin ||
+            a.left  > b.right - margin ||
+            a.bottom < b.top + margin ||
+            a.top    > b.bottom - margin
+        );
+    }
+
+    visibleRect(el) {
+    const cs = getComputedStyle(el);
+    if (cs.display === 'none' || cs.visibility === 'hidden' || Number(cs.opacity) === 0) return null;
+    const rect = el.getBoundingClientRect();
+    if (rect.width < 40 || rect.height < 40) return null; // tiny elements aren't sidebars
+    return rect;
+    }
+
+    // Heuristic: find right/left side panels that Shopware (and many themes) use for cart/offcanvas
+    findObstructionRects() {
+        const selectors = [
+            '.offcanvas', '.offcanvas.is-open', '.offcanvas-overlay',
+            '.js-offcanvas-cart', '.is--offcanvas', '.minicart', '.offcanvas-cart',
+            '[data-offcanvas-cart]', '.header-cart-offcanvas'
+        ];
+        const rects = [];
+        const seen = new Set();
+
+        for (const sel of selectors) {
+            document.querySelectorAll(sel).forEach(el => {
+                if (seen.has(el)) return;
+                const r = this.visibleRect(el);
+                if (r) { rects.push({ el, rect: r }); seen.add(el); }
+            });
+        }
+
+        // Keep only those hugging a screen edge (typical for slide-in panels)
+        const edgePx = 32;
+        return rects.filter(({ rect }) =>
+            rect.left <= edgePx || Math.abs(window.innerWidth - rect.right) <= edgePx
+        );
+    }
+
+    avoidObstruction() {
+        const boxEl = this.getActiveBoxEl();
+        if (!boxEl) return;
+
+        const box = boxEl.getBoundingClientRect();
+        const obstructions = this.findObstructionRects();
+
+        // No sidebars -> return to preferred corner if we moved
+        if (obstructions.length === 0) {
+            if (this.preferredPosition && this.currentPosition() !== this.preferredPosition) {
+                this.setPosition(this.preferredPosition);
+            }
+            return;
+        }
+
+        // If ANY obstruction overlaps our chat/button, flip to the opposite side
+        const overlap = obstructions.some(({ rect }) => this.rectsOverlap(box, rect));
+        if (!overlap) return;
+
+        const next = this.currentPosition() === 'bottom-right' ? 'bottom-left' : 'bottom-right';
+        this.setPosition(next);
+    }
+
+
+    enableSmartAvoidance() {
+        // Run on load & on layout changes
+        const run = () => this.avoidObstruction();
+        this._avoidanceRun = run;
+
+        // 1) Resize/scroll (offcanvas may push layout)
+        window.addEventListener('resize', run, { passive: true });
+        window.addEventListener('scroll', run, { passive: true });
+
+        // 2) MutationObserver to detect offcanvas open/close / attribute changes
+        this._observer = new MutationObserver(() => {
+            // Slight debounce to avoid thrashing while CSS classes animate
+            if (this._avoidTimer) cancelAnimationFrame(this._avoidTimer);
+            this._avoidTimer = requestAnimationFrame(run);
+        });
+        this._observer.observe(document.body, {
+            attributes: true,
+            childList: true,
+            subtree: true
+        });
+
+        // 3) Also listen for our own panel toggles so we recalc on open/close
+        const reRunOnToggle = () => run();
+        this.fab.addEventListener('click', reRunOnToggle);
+        if (this.panel) {
+            this.panel.addEventListener('transitionend', reRunOnToggle);
+        }
+
+        // Initial pass
+        run();
     }
 }
