@@ -146,7 +146,15 @@ export default class AiChatPlugin extends Base {
         const bubble = document.createElement('div');
         bubble.className = `paul-ai-chat-bubble ${who === 'user' ? 'from-user' : 'from-bot'}`;
         if (isError) bubble.classList.add('is-error');
-        bubble.textContent = text;
+
+        if (who === 'bot') {
+            // allow simple HTML for links, but we only generate it ourselves via linkify()
+            bubble.innerHTML = this.linkify(text);
+        } else {
+            // never render user input as HTML
+            bubble.textContent = text;
+        }
+
         this.messagesEl.appendChild(bubble);
         this.scrollMessagesToEnd();
     }
@@ -159,6 +167,16 @@ export default class AiChatPlugin extends Base {
         this.scrollMessagesToEnd();
         return p;
     }
+
+    linkify(text) {
+    // Very simple URL regex, good enough for our product links
+    const urlRegex = /(https?:\/\/[^\s]+)/g;
+
+    return text.replace(urlRegex, (url) => {
+        // open in same tab so user stays in shop
+        return `<a href="${url}" class="paul-ai-chat-link">Zum Produkt</a>`;
+    });
+}
 
     async onSubmit(e) {
         e.preventDefault();

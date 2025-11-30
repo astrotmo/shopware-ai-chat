@@ -61,7 +61,8 @@
   background: var(--paul-bg);
   border-bottom: 1px solid var(--paul-border);
 }
-.paul-ai-chat-title { font-weight: 700; color: var(--paul-text); }
+.paul-ai-chat-title {
+  font-weight: 700; color: var(--paul-text); }
 .paul-ai-chat-close {
   border: 0; background: transparent; color: var(--paul-text);
   font-size: 22px; cursor: pointer; line-height: 1;
@@ -192,4 +193,9 @@
   transition: left .18s ease, right .18s ease, bottom .18s ease, transform .18s ease;
 }
 
+.paul-ai-chat-bubble.from-bot .paul-ai-chat-link {
+    text-decoration: underline;
+    cursor: pointer;
+    border-bottom: 1px solid #147fc2;
+}
 
