@@ -1,183 +1,299 @@
-// custom/plugins/PaulAiChat/src/Resources/app/storefront/src/plugin/ai-chat.plugin.js
+/**
+ * AiChatPlugin for Shopware
+ *
+ * Implements a floating AI chat interface within the Shopware storefront.
+ *
+ * @package    PaulAiChat
+ * @author     Paul Nöth
+ */
+
 const Base = window.PluginBaseClass;
 
+/**
+ * Class AiChatPlugin
+ *
+ * Features:
+ * - Shows a floating chat button (FAB).
+ * - Opens a small chat window at the bottom left or right.
+ * - Sends user inputs to a chat backend (this.chatUrl).
+ * - Expects structured JSON responses with { type, blocks }.
+ * - Renders text bubbles, product lists, and info boxes.
+ * - Stores history and open state in sessionStorage.
+ */
 export default class AiChatPlugin extends Base {
+
+    /**
+     * Initialising the plugin: reading config, building UI, restoring history.
+     */
     init() {
         const { chatUrl, buttonLabel, autoOpen, position } = this.el.dataset;
 
         this.chatUrl = this.normalizeUrl(chatUrl);
+        if (!this.chatUrl) {
+            console.warn('[AiChatPlugin] Kein chatUrl gesetzt, Plugin wird nicht initialisiert.');
+            return;
+        }
+
         this.buttonLabel = buttonLabel || 'Chat';
         this.autoOpen = autoOpen === '1';
         this.position = (position || 'bottom-left').toLowerCase(); // 'bottom-left' | 'bottom-right'
-        this.preferredPosition = this.position; // <-- remember configured corner
+        this.preferredPosition = this.position;
 
+        this.wrapper = null;
+        this.fab = null;
+        this.panel = null;
+        this.messagesEl = null;
+        this.form = null;
+        this.input = null;
+        this.sendBtn = null;
 
-        // Build floating UI
         this.buildUi();
-
-        // Restore previous session (so you can navigate the shop and keep chat)
         this.restoreHistory();
 
-        // Avoid collisions
-        this.enableSmartAvoidance();
+        if (this.autoOpen) {
+            // Small delay that everything is rendered before opening
+            setTimeout(() => this.open(), 400);
+        }
 
-        // Open automatically if desired
-        if (this.autoOpen) this.open();
+        // Always scroll to the end on resize
+        window.addEventListener('resize', () => this.scrollMessagesToEnd());
     }
 
-    normalizeUrl(u) {
-        if (!u) return null;
-        try { return new URL(u, window.location.origin).toString(); }
-        catch { return /^https?:\/\//i.test(u) ? u : `http://${u}`; }
+    /**
+     * Helper function: Ensures the URL is absolute or reasonably relative.
+     * 
+     * @param {string} url The input URL from data attribute.
+     * @returns {string} Normalized URL.
+     */
+    normalizeUrl(url) {
+        if (!url) return '';
+        // If already absolute or reasonably relative, just return it
+        if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('/')) {
+            return url;
+        }
+        // Otherwise relative to current origin
+        return `${window.location.origin.replace(/\/+$/, '')}/${url.replace(/^\/+/, '')}`;
     }
 
+    /**
+     * Builds the chat UI elements and appends them to the document body.
+     */
     buildUi() {
-        // Wrapper is fixed; doesn’t block page interactions (no overlay/backdrop)
-        this.wrapper = document.createElement('div');
-        this.wrapper.className = 'paul-ai-chat-wrap';
-        this.wrapper.classList.add(
-            this.position === 'bottom-right' ? 'paul-ai-chat-bottom-right' : 'paul-ai-chat-bottom-left'
+        // Root container (floating)
+        const wrapper = document.createElement('div');
+        wrapper.className = 'paul-ai-chat-wrap';
+        wrapper.classList.add(
+            this.position === 'bottom-right'
+                ? 'paul-ai-chat-bottom-right'
+                : 'paul-ai-chat-bottom-left'
         );
+        this.wrapper = wrapper;
 
-        // Floating button
-        this.fab = document.createElement('button');
-        this.fab.type = 'button';
-        this.fab.className = 'paul-ai-chat-button';
-        this.fab.setAttribute('aria-haspopup', 'dialog');
-        this.fab.setAttribute('aria-expanded', 'false');
-        this.fab.textContent = this.buttonLabel;
-        this.fab.addEventListener('click', () => this.toggle());
+        // Floating-Action-Button
+        const fab = document.createElement('button');
+        fab.type = 'button';
+        fab.className = 'paul-ai-chat-button';
+        fab.setAttribute('aria-haspopup', 'dialog');
+        fab.setAttribute('aria-expanded', 'false');
+        fab.textContent = this.buttonLabel;
+        fab.addEventListener('click', () => this.toggle());
+        this.fab = fab;
 
-        // Chat panel (hidden by default)
-        this.panel = document.createElement('section');
-        this.panel.className = 'paul-ai-chat-window';
-        this.panel.setAttribute('role', 'dialog');
-        this.panel.setAttribute('aria-label', 'Chat');
+        // Chat window (Panel, initially hidden)
+        const panel = document.createElement('section');
+        panel.className = 'paul-ai-chat-window';
+        panel.setAttribute('aria-label', 'Chat mit Assistenz');
+        panel.setAttribute('role', 'dialog');
+        panel.style.display = 'none';
+        this.panel = panel;
 
-        // Header
+        // Header (Titel, Clear-Icon, Close-Icon)
         const header = document.createElement('header');
         header.className = 'paul-ai-chat-header';
 
-        const title = document.createElement('div');
-        title.className = 'paul-ai-chat-title';
-        title.textContent = 'Support Chat';
+        const titleEl = document.createElement('div');
+        titleEl.className = 'paul-ai-chat-title';
+        titleEl.textContent = this.buttonLabel;
 
+        const controls = document.createElement('div');
+        controls.className = 'paul-ai-chat-header-controls';
+
+        // „Verlauf löschen“ (Trash-Icon)
         const clearBtn = document.createElement('button');
         clearBtn.type = 'button';
         clearBtn.className = 'paul-ai-chat-clear';
-        clearBtn.setAttribute('aria-label', 'Clear chat');
+        clearBtn.title = 'Chatverlauf löschen';
         clearBtn.innerHTML = '🗑️';
-        clearBtn.title = 'Clear chat history';
         clearBtn.addEventListener('click', () => this.clearHistory());
 
-        const close = document.createElement('button');
-        close.type = 'button';
-        close.className = 'paul-ai-chat-close';
-        close.setAttribute('aria-label', 'Close chat');
-        close.innerHTML = '×';
-        close.title = 'Close chat';
-        close.addEventListener('click', () => this.close());
+        // Close (X)
+        const closeBtn = document.createElement('button');
+        closeBtn.type = 'button';
+        closeBtn.className = 'paul-ai-chat-close';
+        closeBtn.title = 'Chat schließen';
+        closeBtn.innerHTML = '×';
+        closeBtn.addEventListener('click', () => this.close());
 
-        header.appendChild(title);
-        header.appendChild(clearBtn);
-        header.appendChild(close);
+        controls.appendChild(clearBtn);
+        controls.appendChild(closeBtn);
 
-        // Messages list
-        this.messagesEl = document.createElement('div');
-        this.messagesEl.className = 'paul-ai-chat-messages';
-        this.messagesEl.setAttribute('aria-live', 'polite');
+        header.appendChild(titleEl);
+        header.appendChild(controls);
 
-        // Form
-        this.form = document.createElement('form');
-        this.form.className = 'paul-ai-chat-form';
-        this.input = document.createElement('input');
-        this.input.type = 'text';
-        this.input.className = 'paul-ai-chat-input';
-        this.input.placeholder = 'Type your message…';
-        this.input.autocomplete = 'off';
+        // Messages container
+        const messagesEl = document.createElement('div');
+        messagesEl.className = 'paul-ai-chat-messages';
+        this.messagesEl = messagesEl;
 
-        this.sendBtn = document.createElement('button');
-        this.sendBtn.type = 'submit';
-        this.sendBtn.className = 'paul-ai-chat-send';
-        this.sendBtn.textContent = 'Send';
+        // Input form
+        const form = document.createElement('form');
+        form.className = 'paul-ai-chat-form';
+        this.form = form;
 
-        this.form.appendChild(this.input);
-        this.form.appendChild(this.sendBtn);
+        const input = document.createElement('textarea');
+        input.className = 'paul-ai-chat-input';
+        input.rows = 1;                     // Start height
+        input.placeholder = 'Enter message …';
+        input.style.resize = 'none';        // no manual resizing
+        input.style.overflow = 'hidden';    // hide scrollbar (grows automatically)
 
-        this.form.addEventListener('submit', (e) => this.onSubmit(e));
+        this.input = input;
 
-        // Assemble
-        this.panel.appendChild(header);
-        this.panel.appendChild(this.messagesEl);
-        this.panel.appendChild(this.form);
+        // Auto-Resize on input:
+        input.addEventListener('input', () => {
+            input.style.height = 'auto';                 
+            input.style.height = input.scrollHeight + 'px';
+            input.style.transition = 'height 0.1s ease';
+        });
 
-        // Initially hidden
-        this.panel.style.display = 'none';
+        const sendBtn = document.createElement('button');
+        sendBtn.type = 'submit';
+        sendBtn.className = 'paul-ai-chat-send';
+        sendBtn.textContent = 'Senden';
+        this.sendBtn = sendBtn;
 
-        // Mount into root
-        this.wrapper.appendChild(this.fab);
-        this.wrapper.appendChild(this.panel);
-        document.body.appendChild(this.wrapper);
+        form.appendChild(input);
+        form.appendChild(sendBtn);
+
+        form.addEventListener('submit', (e) => this.onSubmit(e));
+
+        // Assemble chat window
+        panel.appendChild(header);
+        panel.appendChild(messagesEl);
+        panel.appendChild(form);
+
+        // Anchor everything in the wrapper
+        wrapper.appendChild(fab);
+        wrapper.appendChild(panel);
+        document.body.appendChild(wrapper);
     }
 
-    toggle() {
-        if (this.panel.style.display === 'none') this.open(); else this.close();
-    }
-
+    /**
+     * Open the chat window.
+     * Sets focus to the input field.
+     */
     open() {
+        if (!this.panel) return;
         this.panel.style.display = 'flex';
+        this.wrapper.classList.add('paul-ai-chat-open');
         this.fab.setAttribute('aria-expanded', 'true');
-        this.input?.focus();
-        this.scrollMessagesToEnd();
         this.saveOpenState(true);
+        this.scrollMessagesToEnd();
+        this.input && this.input.focus();
     }
 
+    /**
+     * Close the chat window.
+     * Removes focus from the input field.
+     */
     close() {
+        if (!this.panel) return;
         this.panel.style.display = 'none';
+        this.wrapper.classList.remove('paul-ai-chat-open');
         this.fab.setAttribute('aria-expanded', 'false');
         this.saveOpenState(false);
     }
 
+    /**
+     * Toggle the chat window open/closed.
+     */
+    toggle() {
+        if (!this.panel) return;
+        const isOpen = this.panel.style.display !== 'none';
+        if (isOpen) {
+            this.close();
+        } else {
+            this.open();
+        }
+    }
+
+    /**
+     * Adds a chat bubble.
+     * 
+     * @param {string} text The text content of the bubble.
+     * @param {string} who 'user' or 'bot' to distinguish styles.
+     * @param {boolean} isError Whether it is an error message.
+     * @returns {HTMLElement|null} The created bubble element or null.
+     */
+    appendBubble(text, who = 'bot', isError = false) {
+        if (!this.messagesEl) return null;
+
+        const bubble = document.createElement('div');
+        bubble.className = 'paul-ai-chat-bubble ' + (who === 'user' ? 'from-user' : 'from-bot');
+        if (isError) bubble.classList.add('is-error');
+
+        const inner = document.createElement('div');
+        inner.className = 'paul-ai-chat-bubble-inner';
+        inner.innerHTML = this.linkify(text || '');
+
+        bubble.appendChild(inner);
+        this.messagesEl.appendChild(bubble);
+        this.scrollMessagesToEnd();
+        return bubble;
+    }
+
+    /**
+     * Small "Typing..." placeholder during the response.
+     */
+    appendPending() {
+        const el = document.createElement('div');
+        el.className = 'paul-ai-chat-pending';
+        el.textContent = '…';
+        this.messagesEl.appendChild(el);
+        this.scrollMessagesToEnd();
+        return el;
+    }
+
+    /**
+     * Detects links in the text and makes them clickable.
+     */
+    linkify(text) {
+        if (!text) return '';
+        const escaped = text
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;');
+
+        const urlRegex = /(https?:\/\/[^\s]+)/g;
+        return escaped.replace(urlRegex, (url) => {
+            const safeUrl = url.replace(/"/g, '&quot;');
+            return `<a href="${safeUrl}" target="_self" class="paul-ai-chat-link">${safeUrl}</a>`;
+        });
+    }
+
+    /**
+     * Scrolls the messages container to the end.
+     */
     scrollMessagesToEnd() {
+        if (!this.messagesEl) return;
         this.messagesEl.scrollTop = this.messagesEl.scrollHeight;
     }
 
-    appendBubble(text, who = 'bot', isError = false) {
-        const bubble = document.createElement('div');
-        bubble.className = `paul-ai-chat-bubble ${who === 'user' ? 'from-user' : 'from-bot'}`;
-        if (isError) bubble.classList.add('is-error');
-
-        if (who === 'bot') {
-            // allow simple HTML for links, but we only generate it ourselves via linkify()
-            bubble.innerHTML = this.linkify(text);
-        } else {
-            // never render user input as HTML
-            bubble.textContent = text;
-        }
-
-        this.messagesEl.appendChild(bubble);
-        this.scrollMessagesToEnd();
-    }
-
-    appendPending() {
-        const p = document.createElement('div');
-        p.className = 'paul-ai-chat-pending from-bot';
-        p.textContent = '…';
-        this.messagesEl.appendChild(p);
-        this.scrollMessagesToEnd();
-        return p;
-    }
-
-    linkify(text) {
-    // Very simple URL regex, good enough for our product links
-    const urlRegex = /(https?:\/\/[^\s]+)/g;
-
-    return text.replace(urlRegex, (url) => {
-        // open in same tab so user stays in shop
-        return `<a href="${url}" class="paul-ai-chat-link">Zum Produkt</a>`;
-    });
-}
-
+    /**
+     * Handles form submission: sends user message to backend and processes response.
+     * 
+     * @param {Event} e The submit event.
+     */
     async onSubmit(e) {
         e.preventDefault();
         if (!this.chatUrl || !this.input) return;
@@ -185,14 +301,14 @@ export default class AiChatPlugin extends Base {
         const message = (this.input.value || '').trim();
         if (!message) return;
 
-        // show user bubble immediately
+        // Show user bubble immediately
         this.appendBubble(message, 'user');
         this.persistMessage({ who: 'user', text: message });
 
         this.input.value = '';
         this.input.focus();
 
-        // show pending
+        // Show "Typing..." placeholder
         const pending = this.appendPending();
 
         try {
@@ -201,18 +317,23 @@ export default class AiChatPlugin extends Base {
                 mode: 'cors',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ message })
+                // You could add history here later, e.g. { message, history: [...] }
             });
 
             const text = await res.text();
-            if (!res.ok) throw new Error(text || `HTTP ${res.status}`);
+            if (!res.ok) {
+                throw new Error(text || `HTTP ${res.status}`);
+            }
 
             let payload;
-            try { payload = JSON.parse(text); } catch { payload = { reply: text }; }
+            try {
+                payload = JSON.parse(text);
+            } catch {
+                payload = null;
+            }
 
-            const replyText = (payload.reply ?? payload.message ?? text).toString();
             pending.remove();
-            this.appendBubble(replyText, 'bot');
-            this.persistMessage({ who: 'bot', text: replyText });
+            this.handleBotResponse(payload, text);
         } catch (err) {
             pending.remove();
             const msg = (err && err.message) ? err.message : String(err);
@@ -221,10 +342,181 @@ export default class AiChatPlugin extends Base {
         }
     }
 
-    // --- lightweight session persistence so navigation keeps the chat ---
-    storageKey() { return 'paul-ai-chat-history'; }
-    openKey() { return 'paul-ai-chat-open'; }
+    /**
+     * Central entry point to handle the bot response.
+     * 
+     * @param {*} payload the parsed JSON response
+     * @param {*} rawText the raw text response (fallback)
+     */
+    handleBotResponse(payload, rawText) {
+        if (payload && Array.isArray(payload.blocks)) {
+            this.renderBlocks(payload.blocks);
+            this.persistMessage({ who: 'bot', structured: true, payload });
+            return;
+        }
 
+        // Fallback: simple text (reply/message or rawText)
+        const replyText = (payload && (payload.reply ?? payload.message)) || rawText;
+        this.appendBubble(replyText.toString(), 'bot');
+        this.persistMessage({ who: 'bot', text: replyText.toString() });
+    }
+
+    /**
+     * Renders an array of blocks from the bot response.
+     * 
+     * @param {Array} blocks The array of blocks to render.
+     */
+    renderBlocks(blocks) {
+        if (!Array.isArray(blocks)) return;
+        for (const block of blocks) {
+            this.renderBlock(block);
+        }
+        this.scrollMessagesToEnd();
+    }
+
+    /**
+     * Renders a single block based on its kind.
+     * 
+     * @param {Object} block The block object to render.
+     */
+    renderBlock(block) {
+        if (!block || typeof block !== 'object') return;
+
+        switch (block.kind) {
+            case 'text':
+                if (block.text) {
+                    this.appendBubble(block.text, 'bot');
+                }
+                break;
+
+            case 'product_list':
+                this.renderProductList(block);
+                break;
+
+            case 'info_box':
+                this.renderInfoBox(block);
+                break;
+
+            default:
+                // Unknown block type -> if text is present, render as a simple bubble
+                if (block.text) {
+                    this.appendBubble(block.text, 'bot');
+                }
+        }
+    }
+
+    /**
+     * Renders a product list as tiles (kind: "product_list").
+     * Expected:
+     * {
+     *   title: "string",
+     *   products: [{ id, name, detailUrl, price?, currency? }, ...]
+     * }
+     * 
+     * @param {Object} block The product list block.
+     */
+    renderProductList(block) {
+        if (!this.messagesEl) return;
+
+        const container = document.createElement('div');
+        container.className = 'paul-ai-chat-product-list';
+
+        if (block.title) {
+            const titleEl = document.createElement('div');
+            titleEl.className = 'paul-ai-chat-product-list-title';
+            titleEl.textContent = block.title;
+            container.appendChild(titleEl);
+        }
+
+        const itemsWrap = document.createElement('div');
+        itemsWrap.className = 'paul-ai-chat-product-list-items';
+
+        const products = Array.isArray(block.products) ? block.products : [];
+        for (const p of products) {
+            if (!p || !p.name || !p.detailUrl) continue;
+
+            const card = document.createElement('a');
+            card.className = 'paul-ai-chat-product-card';
+            card.href = p.detailUrl;
+            card.target = '_self';
+
+            const nameEl = document.createElement('div');
+            nameEl.className = 'paul-ai-chat-product-name';
+            nameEl.textContent = p.name;
+            card.appendChild(nameEl);
+
+            if (p.price) {
+                const priceEl = document.createElement('div');
+                priceEl.className = 'paul-ai-chat-product-price';
+                priceEl.textContent = p.price;
+                card.appendChild(priceEl);
+            }
+
+            itemsWrap.appendChild(card);
+        }
+
+        container.appendChild(itemsWrap);
+        this.messagesEl.appendChild(container);
+        this.scrollMessagesToEnd();
+    }
+
+    /**
+     * Renders an info box (kind: "info_box").
+     * Expected:
+     * {
+     *   style: "info" | "warning" | "error",
+     *   title: "string",
+     *   text: "string"
+     * }
+     * 
+     * @param {Object} block The info box block.
+     */
+    renderInfoBox(block) {
+        if (!this.messagesEl) return;
+
+        const box = document.createElement('div');
+        box.className = 'paul-ai-chat-info-box';
+        if (block.style) {
+            box.classList.add(`paul-ai-chat-info-${block.style}`);
+        }
+
+        if (block.title) {
+            const titleEl = document.createElement('div');
+            titleEl.className = 'paul-ai-chat-info-title';
+            titleEl.textContent = block.title;
+            box.appendChild(titleEl);
+        }
+
+        if (block.text) {
+            const textEl = document.createElement('div');
+            textEl.className = 'paul-ai-chat-info-text';
+            textEl.textContent = block.text;
+            box.appendChild(textEl);
+        }
+
+        this.messagesEl.appendChild(box);
+        this.scrollMessagesToEnd();
+    }
+
+    /**
+     * Storage key for chat history in sessionStorage.
+     * 
+     * @returns {string} The storage key.
+     */
+    storageKey() { return 'paul-ai-chat-history'; }
+
+    /**
+     * Storage key for chat open state in sessionStorage.
+     * 
+     * @returns {string} The open state key.
+     */
+    openKey()    { return 'paul-ai-chat-open'; }
+
+    /**
+     * Persists a message to sessionStorage.
+     * 
+     * @param {Object} m The message object to persist.
+     */
     persistMessage(m) {
         const key = this.storageKey();
         const arr = this.readJson(key) || [];
@@ -232,150 +524,58 @@ export default class AiChatPlugin extends Base {
         sessionStorage.setItem(key, JSON.stringify(arr));
     }
 
+    /**
+     * Saves the open/closed state of the chat.
+     * 
+     * @param {boolean} open Whether the chat is open.
+     */
     saveOpenState(open) {
         sessionStorage.setItem(this.openKey(), open ? '1' : '0');
     }
 
+    /**
+     * Restores the chat history after a reload.
+     */
     restoreHistory() {
         const arr = this.readJson(this.storageKey()) || [];
         for (const m of arr) {
-            this.appendBubble(m.text, m.who === 'user' ? 'user' : 'bot', !!m.isError);
+            if (m.structured && m.payload && Array.isArray(m.payload.blocks)) {
+                // new, structured responses
+                this.renderBlocks(m.payload.blocks);
+            } else if (m.text) {
+                // old, simple text history
+                this.appendBubble(m.text, m.who === 'user' ? 'user' : 'bot', !!m.isError);
+            }
         }
+
         if ((sessionStorage.getItem(this.openKey()) || '0') === '1') {
             this.open();
         }
     }
 
-    clearHistory() {
-        const key = this.storageKey();
-        sessionStorage.removeItem(key);
-        this.messagesEl.innerHTML = '';
-        this.appendBubble('Chat history cleared.', 'bot');
-    }
-
+    /**
+     * Reads and parses JSON from sessionStorage.
+     * 
+     * @param {string} key The storage key.
+     * @returns {any} The parsed JSON object or null.
+     */
     readJson(key) {
-        try { return JSON.parse(sessionStorage.getItem(key) || 'null'); }
-        catch { return null; }
-    }
-
-    currentPosition() {
-    return this.position;
-    }
-
-    setPosition(pos) {
-        // remove both corner classes, then apply new one
-        this.wrapper.classList.remove('paul-ai-chat-bottom-left', 'paul-ai-chat-bottom-right');
-        if (pos === 'bottom-right') {
-            this.wrapper.classList.add('paul-ai-chat-bottom-right');
-        } else {
-            pos = 'bottom-left';
-            this.wrapper.classList.add('paul-ai-chat-bottom-left');
+        try {
+            const raw = sessionStorage.getItem(key);
+            return raw ? JSON.parse(raw) : null;
+        } catch (e) {
+            console.warn('[AiChatPlugin] Konnte JSON aus sessionStorage nicht lesen:', e);
+            return null;
         }
-        this.position = pos;
     }
 
-    getActiveBoxEl() {
-        // If panel is visible, avoid based on the panel; otherwise based on the floating button.
-        const panelVisible = this.panel && this.panel.style.display !== 'none';
-        return panelVisible ? this.panel : this.fab;
-    }
-
-    rectsOverlap(a, b, margin = 8) {
-        // add a small margin so we avoid near-collisions
-        return !(
-            a.right < b.left + margin ||
-            a.left  > b.right - margin ||
-            a.bottom < b.top + margin ||
-            a.top    > b.bottom - margin
-        );
-    }
-
-    visibleRect(el) {
-    const cs = getComputedStyle(el);
-    if (cs.display === 'none' || cs.visibility === 'hidden' || Number(cs.opacity) === 0) return null;
-    const rect = el.getBoundingClientRect();
-    if (rect.width < 40 || rect.height < 40) return null; // tiny elements aren't sidebars
-    return rect;
-    }
-
-    // Heuristic: find right/left side panels that Shopware (and many themes) use for cart/offcanvas
-    findObstructionRects() {
-        const selectors = [
-            '.offcanvas', '.offcanvas.is-open', '.offcanvas-overlay',
-            '.js-offcanvas-cart', '.is--offcanvas', '.minicart', '.offcanvas-cart',
-            '[data-offcanvas-cart]', '.header-cart-offcanvas'
-        ];
-        const rects = [];
-        const seen = new Set();
-
-        for (const sel of selectors) {
-            document.querySelectorAll(sel).forEach(el => {
-                if (seen.has(el)) return;
-                const r = this.visibleRect(el);
-                if (r) { rects.push({ el, rect: r }); seen.add(el); }
-            });
+    /**
+     * Clears the chat history and empties the visible area.
+     */
+    clearHistory() {
+        sessionStorage.removeItem(this.storageKey());
+        if (this.messagesEl) {
+            this.messagesEl.innerHTML = '';
         }
-
-        // Keep only those hugging a screen edge (typical for slide-in panels)
-        const edgePx = 32;
-        return rects.filter(({ rect }) =>
-            rect.left <= edgePx || Math.abs(window.innerWidth - rect.right) <= edgePx
-        );
-    }
-
-    avoidObstruction() {
-        const boxEl = this.getActiveBoxEl();
-        if (!boxEl) return;
-
-        const box = boxEl.getBoundingClientRect();
-        const obstructions = this.findObstructionRects();
-
-        // No sidebars -> return to preferred corner if we moved
-        if (obstructions.length === 0) {
-            if (this.preferredPosition && this.currentPosition() !== this.preferredPosition) {
-                this.setPosition(this.preferredPosition);
-            }
-            return;
-        }
-
-        // If ANY obstruction overlaps our chat/button, flip to the opposite side
-        const overlap = obstructions.some(({ rect }) => this.rectsOverlap(box, rect));
-        if (!overlap) return;
-
-        const next = this.currentPosition() === 'bottom-right' ? 'bottom-left' : 'bottom-right';
-        this.setPosition(next);
-    }
-
-
-    enableSmartAvoidance() {
-        // Run on load & on layout changes
-        const run = () => this.avoidObstruction();
-        this._avoidanceRun = run;
-
-        // 1) Resize/scroll (offcanvas may push layout)
-        window.addEventListener('resize', run, { passive: true });
-        window.addEventListener('scroll', run, { passive: true });
-
-        // 2) MutationObserver to detect offcanvas open/close / attribute changes
-        this._observer = new MutationObserver(() => {
-            // Slight debounce to avoid thrashing while CSS classes animate
-            if (this._avoidTimer) cancelAnimationFrame(this._avoidTimer);
-            this._avoidTimer = requestAnimationFrame(run);
-        });
-        this._observer.observe(document.body, {
-            attributes: true,
-            childList: true,
-            subtree: true
-        });
-
-        // 3) Also listen for our own panel toggles so we recalc on open/close
-        const reRunOnToggle = () => run();
-        this.fab.addEventListener('click', reRunOnToggle);
-        if (this.panel) {
-            this.panel.addEventListener('transitionend', reRunOnToggle);
-        }
-
-        // Initial pass
-        run();
     }
 }

@@ -1,76 +1,174 @@
-/* Light theme tokens (easy to tweak later) */
-.paul-ai-chat-wrap {
-  --paul-bg: #fff;          /* Background color */
-  --paul-text: #474a57;     /* Secondary dark gray */
-  --paul-primary: #147fc2;  /* Primary accent blue */
-  --paul-border: #798490;   /* Border gray */
+/* ============================================================================
+   PaulAiChat – Basis-Styles
+   - Light Theme-Token
+   - Positionierung (unten links / rechts)
+   - Floating Button
+   - Chat-Fenster, Header, Messages, Input
+   - Bubble-Styles
+   - Produktlisten & Info-Boxen
+   ========================================================================== */
 
-  /* derived neutrals */
-  --paul-bg-soft: #f7f9fb;  /* soft background panels */
+/* ---------------------------------------------------------------------------
+   Theme-Variablen
+   ------------------------------------------------------------------------ */
+.paul-ai-chat-wrap {
+  --paul-bg: #fff;          /* Hintergrund */
+  --paul-text: #474a57;     /* Sekundäres Dunkelgrau */
+  --paul-primary: #147fc2;  /* Primärer Akzent (Blau) */
+  --paul-border: #798490;   /* Rahmen-Grau */
+
+  --paul-bg-soft: #f7f9fb;  /* Weicher Panel-Hintergrund */
   --paul-muted-text: #5b6270;
   --paul-shadow: 0 16px 48px rgba(20, 31, 51, 0.15);
 
   position: fixed;
   z-index: 10000;
-  pointer-events: none;
+  pointer-events: none; /* Interaction nur über Kinder */
+  transition: left .18s ease, right .18s ease, bottom .18s ease, transform .18s ease;
 }
 
-.paul-ai-chat-bottom-left  { left: 1rem;  bottom: 1rem; }
-.paul-ai-chat-bottom-right { right: 1rem; bottom: 1rem; }
+/* Positionierung: Ecke (unten links / rechts) */
+.paul-ai-chat-bottom-left {
+  bottom: 24px;
+  left: 24px;
+}
 
-/* Floating button (primary pill) */
-.paul-ai-chat-button {
+.paul-ai-chat-bottom-right {
+  bottom: 24px;
+  right: 24px;
+}
+
+/* In geöffnetem Zustand können Inhalte geklickt werden */
+.paul-ai-chat-wrap.paul-ai-chat-open {
   pointer-events: auto;
+}
+
+/* ---------------------------------------------------------------------------
+   Floating-Action-Button (Chat öffnen)
+   ------------------------------------------------------------------------ */
+.paul-ai-chat-button {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  min-width: 64px;
+  height: 48px;
+  padding: 0 1.4rem;
+
+  border-radius: 999px;
   border: 1px solid var(--paul-primary);
-  padding: .75rem 1rem;
-  border-radius: 9999px;
-  font-weight: 600;
-  cursor: pointer;
   background: var(--paul-primary);
   color: #fff;
-  box-shadow: var(--paul-shadow);
-  transition: filter .15s ease, transform .04s ease;
-}
-.paul-ai-chat-button:hover { filter: brightness(1.05); }
-.paul-ai-chat-button:active { transform: translateY(1px); }
+  font-size: .9rem;
+  font-weight: 600;
+  cursor: pointer;
 
-/* Window */
-.paul-ai-chat-window {
+  box-shadow: var(--paul-shadow);
   pointer-events: auto;
-  position: relative;
-  display: none; /* toggled to flex */
-  flex-direction: column;
-  width: min(360px, 92vw);
-  height: 440px;
-  margin-top: .75rem;
-  border-radius: 12px;
-  overflow: hidden;
-  background: var(--paul-bg);
-  color: var(--paul-text);
-  box-shadow: var(--paul-shadow);
-  border: 1px solid var(--paul-border);
+  transition:
+    box-shadow .15s ease,
+    transform .04s ease,
+    filter .12s ease;
 }
 
-/* Header */
+.paul-ai-chat-button:hover {
+  filter: brightness(1.05);
+}
+
+.paul-ai-chat-button:active {
+  transform: translateY(1px);
+  box-shadow: 0 8px 24px rgba(20, 31, 51, 0.18);
+}
+
+/* ---------------------------------------------------------------------------
+   Chat-Fenster (Panel)
+   ------------------------------------------------------------------------ */
+.paul-ai-chat-window {
+  position: absolute;
+  bottom: 64px; /* etwas über dem Button */
+  right: 0;
+  left: auto;
+
+  width: 420px; /* etwas größer */
+  max-width: min(90vw, 420px);
+  height: 520px; /* etwas höher */
+  max-height: min(80vh, 520px);
+
+  display: flex;
+  flex-direction: column;
+
+  border-radius: 16px;
+  background: var(--paul-bg);
+  border: 1px solid var(--paul-border);
+  box-shadow: var(--paul-shadow);
+
+  pointer-events: auto;
+  overflow: hidden;
+}
+
+/* Wenn unten links, Panel passend verschieben */
+.paul-ai-chat-bottom-left .paul-ai-chat-window {
+  left: 0;
+  right: auto;
+}
+
+/* ---------------------------------------------------------------------------
+   Header (Titel, Clear, Close)
+   ------------------------------------------------------------------------ */
 .paul-ai-chat-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   height: 48px;
   padding: 0 .85rem;
+
   background: var(--paul-bg);
   border-bottom: 1px solid var(--paul-border);
 }
-.paul-ai-chat-title {
-  font-weight: 700; color: var(--paul-text); }
-.paul-ai-chat-close {
-  border: 0; background: transparent; color: var(--paul-text);
-  font-size: 22px; cursor: pointer; line-height: 1;
-  width: 34px; height: 34px; border-radius: 8px;
-}
-.paul-ai-chat-close:hover { background: var(--paul-bg-soft); }
 
-/* Messages list */
+.paul-ai-chat-title {
+  font-weight: 700;
+  font-size: .9rem;
+  color: var(--paul-text);
+}
+
+.paul-ai-chat-header-controls {
+  display: flex;
+  align-items: center;
+  gap: .25rem;
+}
+
+.paul-ai-chat-close,
+.paul-ai-chat-clear {
+  border: 0;
+  background: transparent;
+  color: var(--paul-text);
+  font-size: 18px;
+  cursor: pointer;
+  line-height: 1;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background .12s ease, transform .04s ease;
+}
+
+.paul-ai-chat-close:hover,
+.paul-ai-chat-clear:hover {
+  background: var(--paul-bg-soft);
+}
+
+.paul-ai-chat-close:active,
+.paul-ai-chat-clear:active {
+  transform: translateY(1px);
+}
+
+/* ---------------------------------------------------------------------------
+   Nachrichtenliste
+   ------------------------------------------------------------------------ */
 .paul-ai-chat-messages {
   flex: 1;
   overflow-y: auto;
@@ -81,72 +179,102 @@
   background: var(--paul-bg-soft);
 }
 
-/* Bubbles */
+/* „Tippen…“-Indikator */
+.paul-ai-chat-pending {
+  align-self: flex-start;
+  padding: .4rem .7rem;
+  font-size: .8rem;
+  color: var(--paul-muted-text);
+}
+
+/* ---------------------------------------------------------------------------
+   Bubbles (User / Bot)
+   ------------------------------------------------------------------------ */
 .paul-ai-chat-bubble {
   max-width: 85%;
-  width: fit-content;
-  padding: .5rem .7rem;
-  border-radius: 12px;
-  line-height: 1.25;
-  white-space: pre-wrap;
-  word-break: break-word;
-  box-shadow: 0 2px 6px rgba(20,31,51,.08);
-  border: 1px solid var(--paul-border);
-  background: #fff;
-  color: var(--paul-text);
+  display: flex;
 }
 
+.paul-ai-chat-bubble-inner {
+  padding: .45rem .7rem;
+  border-radius: 12px;
+  font-size: .85rem;
+  line-height: 1.4;
+  word-wrap: break-word;
+  word-break: break-word;
+}
+
+/* Nutzer-Bubble rechts, blau */
 .paul-ai-chat-bubble.from-user {
   align-self: flex-end;
+  justify-content: flex-end;
+}
+
+.paul-ai-chat-bubble.from-user .paul-ai-chat-bubble-inner {
   background: var(--paul-primary);
   color: #fff;
-  border-color: var(--paul-primary);
-  border-top-right-radius: 6px;
+  border-bottom-right-radius: 4px;
 }
 
+/* Bot-Bubble links, hell */
 .paul-ai-chat-bubble.from-bot {
   align-self: flex-start;
-  background: #ffffff;
-  border-top-left-radius: 6px;
+  justify-content: flex-start;
 }
 
-.paul-ai-chat-bubble.is-error {
-  background: #ffecee;
-  color: #8a1020;
-  border-color: #f3b7c0;
+.paul-ai-chat-bubble.from-bot .paul-ai-chat-bubble-inner {
+  background: #fff;
+  color: var(--paul-text);
+  border: 1px solid color-mix(in oklab, var(--paul-border) 80%, transparent);
+  border-bottom-left-radius: 4px;
 }
 
-/* Pending (typing) */
-.paul-ai-chat-pending {
-  max-width: 60%;
-  width: fit-content;
-  padding: .4rem .6rem;
-  border-radius: 10px;
-  background: #ffffff;
-  color: var(--paul-muted-text);
-  align-self: flex-start;
-  border: 1px solid var(--paul-border);
+/* Fehler-Bubble */
+.paul-ai-chat-bubble.is-error .paul-ai-chat-bubble-inner {
+  border-color: #d9534f;
+  color: #d9534f;
 }
 
-/* Composer */
+/* Links im Bot-Text */
+.paul-ai-chat-bubble.from-bot .paul-ai-chat-link {
+  text-decoration: underline;
+  cursor: pointer;
+  border-bottom: 1px solid #147fc2;
+}
+
+/* ---------------------------------------------------------------------------
+   Eingabezeile (Form, Input, Send-Button)
+   ------------------------------------------------------------------------ */
 .paul-ai-chat-form {
   display: flex;
   align-items: center;
+  padding: .6rem .7rem;
   gap: .5rem;
-  padding: .6rem .6rem .7rem;
   border-top: 1px solid var(--paul-border);
   background: var(--paul-bg);
 }
+
 .paul-ai-chat-input {
   flex: 1;
-  height: 40px;
   padding: .45rem .6rem;
   border-radius: 8px;
   border: 1px solid var(--paul-border);
-  background: #fff;
+  font-size: .85rem;
   color: var(--paul-text);
+  background: #fff;
+  line-height: 1.3;
+
+  min-height: 40px;      /* Startgröße */
+  max-height: 120px;     /* obere Grenze, optional */
+  overflow-y: auto;
+
+  resize: none;          /* verhindert manuelles Ziehen */
 }
-.paul-ai-chat-input::placeholder { color: var(--paul-muted-text); }
+
+.paul-ai-chat-input::placeholder {
+  color: var(--paul-muted-text);
+}
+
 .paul-ai-chat-input:focus {
   outline: none;
   border-color: var(--paul-primary);
@@ -161,41 +289,114 @@
   background: var(--paul-primary);
   color: #fff;
   font-weight: 700;
+  font-size: .85rem;
   cursor: pointer;
   transition: filter .15s ease, transform .04s ease;
 }
-.paul-ai-chat-send:hover { filter: brightness(1.04); }
-.paul-ai-chat-send:active { transform: translateY(1px); }
-.paul-ai-chat-send:disabled { opacity: .6; cursor: not-allowed; }
 
-/* Clear (trash) button next to close */
-.paul-ai-chat-clear {
-  border: 0;
-  background: transparent;
-  color: var(--paul-text);
-  font-size: 18px;
-  cursor: pointer;
-  line-height: 1;
-  width: 34px;
-  height: 34px;
-  border-radius: 8px;
-  margin-right: .25rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+.paul-ai-chat-send:hover {
+  filter: brightness(1.04);
 }
-.paul-ai-chat-clear:hover {
+
+.paul-ai-chat-send:active {
+  transform: translateY(1px);
+}
+
+.paul-ai-chat-send:disabled {
+  opacity: .6;
+  cursor: not-allowed;
+}
+
+/* ---------------------------------------------------------------------------
+   Produktlisten (kind: "product_list")
+   ------------------------------------------------------------------------ */
+.paul-ai-chat-product-list {
+  margin: .5rem 0 .75rem;
+  padding: .75rem .75rem .5rem;
+  border-radius: 10px;
   background: var(--paul-bg-soft);
+  border: 1px solid var(--paul-border);
+}
+
+.paul-ai-chat-product-list-title {
+  font-size: .85rem;
+  font-weight: 600;
+  margin-bottom: .5rem;
+  color: var(--paul-text);
+}
+
+.paul-ai-chat-product-list-items {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: .4rem;
+}
+
+/* einzelne Produktkarte */
+.paul-ai-chat-product-card {
+  display: flex;
+  flex-direction: column;
+  padding: .55rem .6rem;
+  border-radius: 8px;
+  border: 1px solid color-mix(in oklab, var(--paul-border) 80%, transparent);
+  background: #fff;
+  text-decoration: none;
+  color: inherit;
+  transition:
+    transform .08s ease,
+    box-shadow .12s ease,
+    border-color .12s ease;
+}
+
+.paul-ai-chat-product-card:hover {
+  transform: translateY(-1px);
+  border-color: var(--paul-primary);
+  box-shadow: 0 8px 18px rgba(20, 31, 51, 0.12);
+}
+
+.paul-ai-chat-product-name {
+  font-size: .85rem;
+  font-weight: 600;
+  margin-bottom: .2rem;
+}
+
+.paul-ai-chat-product-price {
+  font-size: .8rem;
+  font-weight: 500;
   color: var(--paul-primary);
 }
 
-.paul-ai-chat-wrap {
-  transition: left .18s ease, right .18s ease, bottom .18s ease, transform .18s ease;
+/* ---------------------------------------------------------------------------
+   Info-Boxen (kind: "info_box")
+   ------------------------------------------------------------------------ */
+.paul-ai-chat-info-box {
+  margin: .5rem 0;
+  padding: .6rem .7rem;
+  border-radius: 8px;
+  border-left: 3px solid var(--paul-border);
+  background: var(--paul-bg-soft);
+  font-size: .8rem;
 }
 
-.paul-ai-chat-bubble.from-bot .paul-ai-chat-link {
-    text-decoration: underline;
-    cursor: pointer;
-    border-bottom: 1px solid #147fc2;
+.paul-ai-chat-info-title {
+  font-weight: 600;
+  margin-bottom: .2rem;
+  color: var(--paul-text);
 }
 
+.paul-ai-chat-info-text {
+  line-height: 1.4;
+  color: var(--paul-text);
+}
+
+/* Varianten nach style: info | warning | error */
+.paul-ai-chat-info-info {
+  border-left-color: var(--paul-primary);
+}
+
+.paul-ai-chat-info-warning {
+  border-left-color: #f0ad4e;
+}
+
+.paul-ai-chat-info-error {
+  border-left-color: #d9534f;
+}

@@ -1,4 +1,12 @@
 <?php declare(strict_types=1);
+/**
+ * Paul AI Chat Plugin for Shopware
+ *
+ * Registers a chat interface powered by AI to assist users within the Shopware platform.
+ * 
+ * @package    PaulAiChat
+ * @author     Paul Nöth
+*/
 
 namespace Paul\AiChat;
 

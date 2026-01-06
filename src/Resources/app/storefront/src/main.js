@@ -1,4 +1,12 @@
-// custom/plugins/PaulAiChat/src/Resources/app/storefront/src/main.js
+/**
+ * Main JavaScript entry point for the Paul AI Chat plugin.
+ * 
+ * This file registers the AI chat plugin with the Shopware PluginManager,
+ * enabling the chat functionality on storefront pages.
+ * 
+ * @package    PaulAiChat
+ * @author     Paul Nöth
+ */
 
 import AiChatPlugin from './plugin/ai-chat.plugin';
 
