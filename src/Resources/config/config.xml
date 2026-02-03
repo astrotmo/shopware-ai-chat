@@ -11,11 +11,44 @@
       <placeholder>https://your-chat-app.example/chat</placeholder>
     </input-field>
 
+    <input-field type="single-select">
+      <name>llmModel</name>
+      <label>Ollama model</label>
+      <options>
+        <option>
+          <id>llama3.1:8b</id>
+          <name>Llama3.1:8b</name>
+        </option>
+        <option>
+          <id>mistral:7b</id>
+          <name>Mistral:7b</name>
+        </option>
+        <option>
+          <id>gpt-oss:20b</id>
+          <name>GPT-oss:20b</name>
+        </option>
+        <option>
+          <id>ministral-3:8b</id>
+          <name>Ministral-3:8b</name>
+        </option>
+        <option>
+          <id>functiongemma:latest</id>
+          <name>Functiongemma:270m</name>
+        </option>
+        <option>
+          <id>qwen3-vl:8b</id>
+          <name>Qwen3-vl:8b</name>
+        </option>
+      </options>
+      <defaultValue>llama3.1:8b</defaultValue>
+      <placeholder>Llama3.1:8b</placeholder>
+    </input-field>
+
     <input-field type="text">
       <name>welcomeMessage</name>
       <label>Welcome message</label>
-      <placeholder>Hi! How can we help?</placeholder>
-      <defaultValue>Hi! How can we help?</defaultValue>
+      <placeholder>Hallo, wie kann ich behilflich sein?</placeholder>
+      <defaultValue>Hallo, wie kann ich behilflich sein?</defaultValue>
     </input-field>
 
     <input-field type="bool">

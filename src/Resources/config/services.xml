@@ -9,5 +9,27 @@
             <argument type="service" id="Shopware\Core\System\SystemConfig\SystemConfigService"/>
             <tag name="kernel.event_subscriber" />
         </service>
+        <service id ="Paul\AiChat\Storefront\Controller\ChatContextController" public="true">
+            <call method="setContainer">
+                <argument type="service" id="service_container"/>
+            </call>
+            <argument>%env(string:CHAT_AUTH_SECRET)%</argument>
+            <tag name="controller.service_arguments"/>
+        </service>
+        <service id="Paul\AiChat\Storefront\Controller\FormularController" public="true">
+            <call method="setContainer">
+                <argument type="service" id="service_container"/>
+            </call>
+            <argument type="service" id="Shopware\Core\Content\Mail\Service\MailService"/>
+            <argument type="service" id="Shopware\Core\System\SystemConfig\SystemConfigService"/>
+            <tag name="controller.service_arguments"/>
+        </service>
+        <service id="Paul\AiChat\Storefront\Controller\PricesController" public="true">
+            <call method="setContainer">
+                <argument type="service" id="service_container"/>
+            </call>
+            <argument type="service" id="sales_channel.product.repository"/>
+            <tag name="controller.service_arguments"/>
+        </service>
     </services>
 </container>

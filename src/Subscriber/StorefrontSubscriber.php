@@ -62,13 +62,15 @@ class StorefrontSubscriber implements EventSubscriberInterface
         $salesChannelId = $event->getSalesChannelContext()->getSalesChannelId();
 
         $chatUrl         = (string) ($this->config->get('PaulAiChat.config.chatUrl', $salesChannelId) ?? '');
-        $welcomeMessage  = (string) ($this->config->get('PaulAiChat.config.welcomeMessage', $salesChannelId) ?? 'Hi! How can we help?');
+        $llmModel        = (string) ($this->config->get('PaulAiChat.config.llmModel', $salesChannelId) ?? 'llama3.1:8b');
+        $welcomeMessage  = (string) ($this->config->get('PaulAiChat.config.welcomeMessage', $salesChannelId) ?? 'Hallo, wie kann ich behilflich sein?');
         $autoOpen        = (bool)   ($this->config->get('PaulAiChat.config.autoOpen', $salesChannelId) ?? false);
         $buttonLabel     = (string) ($this->config->get('PaulAiChat.config.buttonLabel', $salesChannelId) ?? 'Chat');
         $position        = (string) ($this->config->get('PaulAiChat.config.position', $salesChannelId) ?? 'bottom-right');
 
         $event->getPage()->addExtension('paulAiChat', new ArrayEntity([
             'chatUrl'        => $chatUrl,
+            'llmModel'       => $llmModel,
             'welcomeMessage' => $welcomeMessage,
             'autoOpen'       => $autoOpen,
             'buttonLabel'    => $buttonLabel,

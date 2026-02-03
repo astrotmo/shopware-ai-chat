@@ -6,9 +6,12 @@
 
     {# JS will inject the floating button & chat panel here. #}
     <div paul-ai-chat-root
-         data-chat-url="{{ config('PaulAiChat.config.chatUrl')|e }}"
-         data-button-label="{{ config('PaulAiChat.config.buttonLabel')|default('Chat')|e }}"
-         data-auto-open="{{ config('PaulAiChat.config.autoOpen') ? '1' : '0' }}"
-         data-position="{{ config('PaulAiChat.config.position')|default('bottom-left')|e }}">
-    </div>
+     data-chat-url="{{ config('PaulAiChat.config.chatUrl')|e('html_attr') }}"
+     data-context-token-url="{{ path('frontend.paul_ai_chat.context_token')|e('html_attr') }}"
+     data-llm-model="{{ (config('PaulAiChat.config.llmModel') ?? '')|e('html_attr') }}"
+     data-welcome-message="{{ (config('PaulAiChat.config.welcomeMessage') ?? '')|e('html_attr') }}"
+     data-button-label="{{ (config('PaulAiChat.config.buttonLabel') ?? '')|e('html_attr') }}"
+     data-auto-open="{{ config('PaulAiChat.config.autoOpen') ? '1' : '0' }}"
+     data-position="{{ (config('PaulAiChat.config.position') ?? 'bottom-right')|e('html_attr') }}">
+</div>
 {% endblock %}

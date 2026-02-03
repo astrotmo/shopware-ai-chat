@@ -7,6 +7,9 @@
  * @author     Paul Nöth
  */
 
+import { marked } from 'marked';
+import DOMPurify from 'dompurify';
+
 const Base = window.PluginBaseClass;
 
 /**
@@ -22,17 +25,29 @@ const Base = window.PluginBaseClass;
  */
 export default class AiChatPlugin extends Base {
 
+    /** LIFE CYCLE */
+
     /**
      * Initialising the plugin: reading config, building UI, restoring history.
      */
     init() {
-        const { chatUrl, buttonLabel, autoOpen, position } = this.el.dataset;
+
+        this.debug = false;
+
+        this.debugLog('Plugin init');
+        this.debugLog('Root element:', this.el);
+        this.debugLog('Dataset:', this.el?.dataset);
+        this.debugLog('Client context:', this.getClientContext());
+
+        const { chatUrl, llmModel, welcomeMessage, buttonLabel, autoOpen, position, contextTokenUrl } = this.el.dataset;
 
         this.chatUrl = this.normalizeUrl(chatUrl);
         if (!this.chatUrl) {
-            console.warn('[AiChatPlugin] Kein chatUrl gesetzt, Plugin wird nicht initialisiert.');
+            this.debugWarn('Kein chatUrl gesetzt, Plugin wird nicht initialisiert.');
             return;
         }
+        this.llmModel = llmModel || '';
+        this.welcomeMessage = welcomeMessage || 'Hallo, wie kann ich behilflich sein?';
 
         this.buttonLabel = buttonLabel || 'Chat';
         this.autoOpen = autoOpen === '1';
@@ -47,6 +62,10 @@ export default class AiChatPlugin extends Base {
         this.input = null;
         this.sendBtn = null;
 
+        this.contextToken = null;
+        this.contextTokenExpMs = 0;
+        this.contextTokenUrl = contextTokenUrl || '';
+
         this.buildUi();
         this.restoreHistory();
 
@@ -58,6 +77,25 @@ export default class AiChatPlugin extends Base {
         // Always scroll to the end on resize
         window.addEventListener('resize', () => this.scrollMessagesToEnd());
     }
+
+    /** DEBUGGING HELPERS */
+
+    debugLog(...args) {
+    if (!this.debug) return;
+    console.debug('[PaulAiChat]', ...args);
+    }
+
+    debugWarn(...args) {
+        if (!this.debug) return;
+        console.warn('[PaulAiChat]', ...args);
+    }
+
+    debugError(...args) {
+        if (!this.debug) return;
+        console.error('[PaulAiChat]', ...args);
+    }
+
+    /** UI SETUP & WINDOW STATE */
 
     /**
      * Helper function: Ensures the URL is absolute or reasonably relative.
@@ -186,6 +224,12 @@ export default class AiChatPlugin extends Base {
         wrapper.appendChild(fab);
         wrapper.appendChild(panel);
         document.body.appendChild(wrapper);
+
+        // Show hint for contact form for not logged in users
+        this.showContactFormHint();
+        
+        // Append welcome message from bot
+        this.appendBubble(this.welcomeMessage, 'bot');
     }
 
     /**
@@ -200,6 +244,7 @@ export default class AiChatPlugin extends Base {
         this.saveOpenState(true);
         this.scrollMessagesToEnd();
         this.input && this.input.focus();
+        this.debugLog('Chat opened');
     }
 
     /**
@@ -212,6 +257,7 @@ export default class AiChatPlugin extends Base {
         this.wrapper.classList.remove('paul-ai-chat-open');
         this.fab.setAttribute('aria-expanded', 'false');
         this.saveOpenState(false);
+        this.debugLog('Chat closed');
     }
 
     /**
@@ -228,40 +274,32 @@ export default class AiChatPlugin extends Base {
     }
 
     /**
-     * Adds a chat bubble.
-     * 
-     * @param {string} text The text content of the bubble.
-     * @param {string} who 'user' or 'bot' to distinguish styles.
-     * @param {boolean} isError Whether it is an error message.
-     * @returns {HTMLElement|null} The created bubble element or null.
+     * Scrolls the messages container to the end.
      */
-    appendBubble(text, who = 'bot', isError = false) {
-        if (!this.messagesEl) return null;
-
-        const bubble = document.createElement('div');
-        bubble.className = 'paul-ai-chat-bubble ' + (who === 'user' ? 'from-user' : 'from-bot');
-        if (isError) bubble.classList.add('is-error');
-
-        const inner = document.createElement('div');
-        inner.className = 'paul-ai-chat-bubble-inner';
-        inner.innerHTML = this.linkify(text || '');
-
-        bubble.appendChild(inner);
-        this.messagesEl.appendChild(bubble);
-        this.scrollMessagesToEnd();
-        return bubble;
+    scrollMessagesToEnd() {
+        if (!this.messagesEl) return;
+        this.messagesEl.scrollTop = this.messagesEl.scrollHeight;
     }
 
+    /** RENDERING PRIMITIVES */
+
     /**
-     * Small "Typing..." placeholder during the response.
+     * Renders markdown text to sanitized HTML.
+     * 
+     * @param {string} markdown The markdown text.
+     * @returns {string} The sanitized HTML.
      */
-    appendPending() {
-        const el = document.createElement('div');
-        el.className = 'paul-ai-chat-pending';
-        el.textContent = '…';
-        this.messagesEl.appendChild(el);
-        this.scrollMessagesToEnd();
-        return el;
+    renderMarkdown(markdown) {
+        if (!markdown || typeof markdown !== 'string') return '';
+
+        const cleaned = markdown.trim();
+
+        const html = marked.parse(cleaned, {
+            gfm: true,
+            breaks: true,
+        });
+
+        return DOMPurify.sanitize(html);
     }
 
     /**
@@ -282,12 +320,43 @@ export default class AiChatPlugin extends Base {
     }
 
     /**
-     * Scrolls the messages container to the end.
+     * Adds a chat bubble.
+     * 
+     * @param {string} text The text content of the bubble.
+     * @param {string} who 'user' or 'bot' to distinguish styles.
+     * @param {boolean} isError Whether it is an error message.
+     * @returns {HTMLElement|null} The created bubble element or null.
      */
-    scrollMessagesToEnd() {
-        if (!this.messagesEl) return;
-        this.messagesEl.scrollTop = this.messagesEl.scrollHeight;
+    appendBubble(text, who = 'bot', isError = false) {
+        if (!this.messagesEl) return null;
+
+        const bubble = document.createElement('div');
+        bubble.className = 'paul-ai-chat-bubble ' + (who === 'user' ? 'from-user' : 'from-bot');
+        if (isError) bubble.classList.add('is-error');
+
+        const inner = document.createElement('div');
+        inner.className = 'paul-ai-chat-bubble-inner';
+        inner.innerHTML = this.renderMarkdown(text || '');
+
+        bubble.appendChild(inner);
+        this.messagesEl.appendChild(bubble);
+        this.scrollMessagesToEnd();
+        return bubble;
     }
+
+    /**
+     * Small "Typing..." placeholder during the response.
+     */
+    appendPending() {
+        const el = document.createElement('div');
+        el.className = 'paul-ai-chat-pending';
+        el.textContent = '…';
+        this.messagesEl.appendChild(el);
+        this.scrollMessagesToEnd();
+        return el;
+    }
+
+    /** CHAT REQUEST FLOW */
 
     /**
      * Handles form submission: sends user message to backend and processes response.
@@ -301,6 +370,8 @@ export default class AiChatPlugin extends Base {
         const message = (this.input.value || '').trim();
         if (!message) return;
 
+        const client = this.getClientContext();
+
         // Show user bubble immediately
         this.appendBubble(message, 'user');
         this.persistMessage({ who: 'user', text: message });
@@ -312,13 +383,27 @@ export default class AiChatPlugin extends Base {
         const pending = this.appendPending();
 
         try {
-            const res = await fetch(this.chatUrl, {
+            const contextToken = await this.getContextToken(this.contextTokenUrl);
+            const load = {
                 method: 'POST',
                 mode: 'cors',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ message })
-                // You could add history here later, e.g. { message, history: [...] }
-            });
+                body: JSON.stringify(
+                    {
+                        message,
+                        model: this.llmModel,
+                        client: {
+                            origin: client.origin,
+                            basePath: client.basePath,
+                            fullBaseUrl: client.fullBaseUrl,
+                            contextToken: contextToken || ''
+                        },
+                    }),
+            }
+
+            this.debugLog('Sending chat payload to backend', load);
+
+            const res = await fetch(this.chatUrl, load);
 
             const text = await res.text();
             if (!res.ok) {
@@ -333,6 +418,9 @@ export default class AiChatPlugin extends Base {
             }
 
             pending.remove();
+
+            this.debugLog('Bot response payload:', payload, 'raw text:', text);
+
             this.handleBotResponse(payload, text);
         } catch (err) {
             pending.remove();
@@ -360,6 +448,8 @@ export default class AiChatPlugin extends Base {
         this.appendBubble(replyText.toString(), 'bot');
         this.persistMessage({ who: 'bot', text: replyText.toString() });
     }
+
+    /** STRUCTURED BLOCK RENDERING */
 
     /**
      * Renders an array of blocks from the bot response.
@@ -397,6 +487,10 @@ export default class AiChatPlugin extends Base {
                 this.renderInfoBox(block);
                 break;
 
+            case 'formular':
+                this.renderFormular(block);
+                break;
+
             default:
                 // Unknown block type -> if text is present, render as a simple bubble
                 if (block.text) {
@@ -418,6 +512,11 @@ export default class AiChatPlugin extends Base {
     renderProductList(block) {
         if (!this.messagesEl) return;
 
+        this.debugLog('Rendering product list block', block);
+
+        const clientContext = this.getClientContext();
+        const fullBaseUrl = clientContext.fullBaseUrl;
+
         const container = document.createElement('div');
         container.className = 'paul-ai-chat-product-list';
 
@@ -432,12 +531,16 @@ export default class AiChatPlugin extends Base {
         itemsWrap.className = 'paul-ai-chat-product-list-items';
 
         const products = Array.isArray(block.products) ? block.products : [];
+
+        // Keep references to price elements so we can update later
+        const priceElsById = new Map();
+        
         for (const p of products) {
-            if (!p || !p.name || !p.detailUrl) continue;
+            if (!p || !p.name) continue;
 
             const card = document.createElement('a');
             card.className = 'paul-ai-chat-product-card';
-            card.href = p.detailUrl;
+            card.href = fullBaseUrl + "/detail/" + p.id;
             card.target = '_self';
 
             const nameEl = document.createElement('div');
@@ -445,19 +548,93 @@ export default class AiChatPlugin extends Base {
             nameEl.textContent = p.name;
             card.appendChild(nameEl);
 
-            if (p.price) {
-                const priceEl = document.createElement('div');
-                priceEl.className = 'paul-ai-chat-product-price';
-                priceEl.textContent = p.price;
-                card.appendChild(priceEl);
+            const metaEl = document.createElement('div');
+            metaEl.className = 'paul-ai-chat-product-meta';
+
+            if (p.productNumber) {
+                const numberEl = document.createElement('span');
+                numberEl.className = 'paul-ai-chat-product-number';
+                numberEl.textContent = p.productNumber;
+                metaEl.appendChild(numberEl);
             }
 
+            // Always create a price element, but keep it empty/hidden if no price
+            const priceEl = document.createElement('span');
+            priceEl.className = 'paul-ai-chat-product-price';
+
+            if (p.price) {
+                // If backend already provided a price, display it
+                priceEl.textContent = p.price;
+            } else {
+                // Placeholder (only shown if we later get a price)
+                priceEl.textContent = '';
+                priceEl.style.display = 'none';
+            }
+
+            metaEl.appendChild(priceEl);
+            card.appendChild(metaEl);
+
+            priceElsById.set(p.id, priceEl);
             itemsWrap.appendChild(card);
         }
 
         container.appendChild(itemsWrap);
         this.messagesEl.appendChild(container);
         this.scrollMessagesToEnd();
+
+         // Enrich with calculated prices (logged-in only)
+        const ids = [...priceElsById.keys()];
+        if (ids.length === 0) return;
+
+        this.debugLog('Requesting prices for product IDs', ids);
+
+        // Fire and forget (no UI blocking)
+        this.fetchCalculatedPrices(ids).then((pricesById) => {
+            this.debugLog('Applying calculated prices', priceElsById);
+
+            for (const [id, el] of priceElsById.entries()) {
+                const prod = pricesById[id];
+
+                if (!prod) {
+                    this.debugWarn('No calculated price for product', id, prod);
+                    continue;
+                }
+
+                let price = null;
+
+                const tiers = Array.isArray(prod.calculatedPrices) ? prod.calculatedPrices : [];
+                if (tiers.length > 0) {
+                    // prefer quantity=1 tier, else first tier with unitPrice
+                    const q1 = tiers.find(t => t && t.quantity === 1 && typeof t.unitPrice === 'number');
+                    if (q1) {
+                        price = q1.unitPrice;
+                    } else {
+                        const any = tiers.find(t => t && typeof t.unitPrice === 'number');
+                        if (any) price = any.unitPrice;
+                    }
+                }
+
+                if (price === null) {
+                    const base = prod?.calculatedPrice?.unitPrice;
+                    if (typeof base === 'number') price = base;
+                }
+
+                if (price === null) {
+                    this.debugWarn('No usable price fields for product', id, prod);
+                    continue;
+                }
+
+                // Format: "12,34 €" (simple + locale)
+                const formatted = new Intl.NumberFormat('de-DE', {
+                    style: 'currency',
+                    currency: 'EUR', // If you want dynamic currency, send currency ISO from backend
+                }).format(price);
+
+                el.textContent = formatted;
+                el.style.display = '';
+            }
+            this.scrollMessagesToEnd();
+        });
     }
 
     /**
@@ -497,6 +674,242 @@ export default class AiChatPlugin extends Base {
         this.messagesEl.appendChild(box);
         this.scrollMessagesToEnd();
     }
+
+    /**
+     * Renders a contact form (kind: "formular").
+     * Expected:
+     * {
+     *   title: "string",
+     *   text: "string",
+     *   fields: [{ name, label, type, placeholder, required, options? }, ...],
+     *   submitLabel: "string",
+     *   contactUrl: "string" (optional URL to open on submit)
+     * }
+     * 
+     * @param {Object} block The formular block.
+     */
+    renderFormular(block) {
+        if (!this.messagesEl) return;
+
+        const container = document.createElement('div');
+        container.className = 'paul-ai-chat-formular';
+
+        const header = document.createElement('div');
+        header.className = 'paul-ai-chat-formular-header';
+
+        const titleEl = document.createElement('div');
+        titleEl.className = 'paul-ai-chat-formular-title';
+        titleEl.textContent = block.title || 'Kontaktformular';
+
+        const toggle = document.createElement('div');
+        toggle.className = 'paul-ai-chat-formular-toggle';
+        toggle.textContent = '▼';
+
+        header.appendChild(titleEl);
+        header.appendChild(toggle);
+        container.appendChild(header);
+
+        const body = document.createElement('div');
+        body.className = 'paul-ai-chat-formular-body';
+
+        const form = document.createElement('form');
+        form.className = 'paul-ai-chat-formular-form';
+
+        if (block.reason) {
+            const reasonEl = document.createElement('div');
+            reasonEl.className = 'paul-ai-chat-formular-reason';
+            reasonEl.textContent = block.reason;
+            body.appendChild(reasonEl);
+        }
+
+        for (const f of block.fields || []) {
+            if (!f?.key) continue;
+
+            const row = document.createElement('label');
+            row.className = 'paul-ai-chat-formular-row';
+
+            const labelEl = document.createElement('div');
+            labelEl.className = 'paul-ai-chat-formular-label';
+            labelEl.textContent = f.label || f.key;
+
+            let input;
+            if (f.type === 'textarea') {
+                input = document.createElement('textarea');
+                input.rows = 4;
+            } else {
+                input = document.createElement('input');
+                input.type = f.type || 'text';
+            }
+
+            input.className = 'paul-ai-chat-formular-input';
+            input.name = f.key;
+            if (f.placeholder) input.placeholder = f.placeholder;
+            if (f.required) input.required = true;
+            if (f.value != null) input.value = String(f.value);
+
+            row.appendChild(labelEl);
+            row.appendChild(input);
+            form.appendChild(row);
+        }
+
+        const actions = document.createElement('div');
+        actions.className = 'paul-ai-chat-formular-actions';
+
+        const btn = document.createElement('button');
+        btn.type = 'submit';
+        btn.className = 'paul-ai-chat-formular-submit';
+        btn.textContent = block.submitLabel || 'Absenden';
+
+        actions.appendChild(btn);
+        form.appendChild(actions);
+        body.appendChild(form);
+        container.appendChild(body);
+
+        const setCollapsed = (collapsed) => {
+            container.classList.toggle('is-collapsed', collapsed);
+            toggle.textContent = collapsed ? '▼' : '▲';
+        };
+
+        header.addEventListener('click', () => {
+            setCollapsed(!container.classList.contains('is-collapsed'));
+        });
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            btn.disabled = true;
+
+            const success = await this.submitContactForm(form, block);
+
+            btn.disabled = false;
+
+            if (success) {
+                setCollapsed(true);
+                container.classList.add('is-done');
+            }
+        });
+
+        this.messagesEl.appendChild(container);
+        this.scrollMessagesToEnd();
+    }
+
+    /** CONTEXT / BACKEND HELPERS */
+
+    /**
+     * Gathers client context information for requests.
+     * 
+     * @returns {Object} The client context with origin, basePath, and fullBaseUrl.
+     */
+    getClientContext() {
+        const { origin, pathname} = window.location;
+
+        const parts = pathname.split('/').filter(Boolean);
+        const basePath = parts.length > 0 ? `/${parts[0]}` : '';
+
+        return {
+            origin,
+            basePath,
+            fullBaseUrl: origin + basePath
+        };
+    }
+
+    /**
+     * Retrieves a context token from the backend.
+     * Caches it until shortly before expiration.
+     * 
+     * @param {string} contextTokenUrl The URL to fetch the context token.
+     * @returns {Promise<string|null>} The context token or null.
+     */
+    async getContextToken(contextTokenUrl) {
+        this.debugLog('Getting context token from', contextTokenUrl);
+
+        const now = Date.now();
+        if (this.contextToken && now < this.contextTokenExpMs - 5000) {
+            return this.contextToken;
+        }
+
+        if (!contextTokenUrl) return null;
+
+        try {
+            const res = await fetch(contextTokenUrl, {
+                method: 'GET',
+                credentials: 'include',
+                headers: { 'Accept': 'application/json' },
+            });
+
+            if (!res.ok) return null;
+
+            const data = await res.json();
+            if (!data?.token) return null;
+
+            this.debugLog('Received context token', data.token);
+
+            // decode exp from JWT-like payload
+            const parts = data.token.split('.');
+            if (parts.length === 3) {
+                const payloadJson = JSON.parse(
+                    atob(parts[1].replace(/-/g, '+').replace(/_/g, '/'))
+                );
+                this.contextTokenExpMs = payloadJson?.exp ? Number(payloadJson.exp) * 1000 : now + 30000;
+            } else {
+                this.contextTokenExpMs = now + 30000;
+            }
+
+            this.contextToken = data.token;
+            return this.contextToken;
+        } catch {
+            return null;
+        }
+    }
+
+    /**
+     * Fetch calculated prices for product IDs from the Shopware plugin endpoint.
+     * Only works for logged-in users (endpoint should return 401 otherwise).
+     *
+     * @param {string[]} productIds
+     * @returns {Promise<Record<string, Object>>} Mapping of productId to price info.
+     */
+    async fetchCalculatedPrices(productIds) {
+        if (!Array.isArray(productIds) || productIds.length === 0) {
+            this.debugWarn('fetchCalculatedPrices called with empty productIds');
+            return {};
+        }
+
+        this.debugLog('Fetching calculated prices', productIds);
+
+        try {
+            const res = await fetch('/paul-ai-chat/prices', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                },
+                credentials: 'same-origin',
+                body: JSON.stringify({ productIds }),
+            });
+
+            this.debugLog('Price endpoint response status:', res.status);
+
+            if (res.status === 401) {
+                this.debugWarn('User not logged in – price endpoint returned 401');
+                return {};
+            }
+
+            if (!res.ok) {
+                this.debugError('Price endpoint error', res.status);
+                return {};
+            }
+
+            const data = await res.json();
+            this.debugLog('Price endpoint payload:', data);
+
+            return data?.prices || {};
+        } catch (e) {
+            this.debugError('Price fetch failed', e);
+            return {};
+        }
+    }
+
+    /** PERSISTENCE / SESSION STORAGE */
 
     /**
      * Storage key for chat history in sessionStorage.
@@ -564,7 +977,7 @@ export default class AiChatPlugin extends Base {
             const raw = sessionStorage.getItem(key);
             return raw ? JSON.parse(raw) : null;
         } catch (e) {
-            console.warn('[AiChatPlugin] Konnte JSON aus sessionStorage nicht lesen:', e);
+            this.debugWarn('Konnte JSON aus sessionStorage nicht lesen:', e);
             return null;
         }
     }
@@ -578,4 +991,64 @@ export default class AiChatPlugin extends Base {
             this.messagesEl.innerHTML = '';
         }
     }
+
+    /** CONTACT FORM HELPER */
+
+    /**
+     * Shows a hint to the user about the contact form if they are not logged in.
+     * @returns {void}
+     */
+    showContactFormHint() {
+        if (this._contactHintShown) return;
+        this._contactHintShown = true;
+
+        const block = {
+            kind: 'info_box',
+            style: 'warning',
+            title: 'Hinweis Nutzer',
+            text: 'Dieser Assistent kann nur allgemeine Informationen geben. Falls ihre Fragen über diese hinausgehen, werden sie ggf. gebeten ein Kontaktformular auszufüllen.',
+        }
+
+        this.renderBlock(block);
+    }
+
+    /**
+     * Submits the contact form data to the backend.
+     * @param {HTMLFormElement} form The contact form element.
+     * @param {Object} block The block configuration with endpoint and method.
+     * @returns {Promise<boolean>} True if submission was successful, false otherwise.
+     */
+    async submitContactForm(form, block) {
+        const formData = new FormData(form);
+        const payload = Object.fromEntries(formData.entries());
+
+        try {
+            const res = await fetch(block.endpoint || '/paul-ai-chat/contact', {
+                method: block.method || 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                },
+                credentials: 'same-origin',
+                body: JSON.stringify(payload),
+            });
+
+            if (!res.ok) throw new Error('REQUEST_FAILED');
+
+            this.appendBubble(
+                '✅ Danke! Deine Anfrage wurde erfolgreich übermittelt.',
+                'bot'
+            );
+            return true;
+        } catch (e) {
+            this.appendBubble(
+                '❌ Beim Absenden ist ein Fehler aufgetreten. Bitte versuche es erneut.',
+                'bot'
+            );
+            return false;
+        } finally {
+            this.scrollMessagesToEnd();
+        }
+    }
+
 }

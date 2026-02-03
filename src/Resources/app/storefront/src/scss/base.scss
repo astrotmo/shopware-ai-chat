@@ -204,6 +204,15 @@
   word-break: break-word;
 }
 
+.paul-ai-chat-bubble-inner p:last-child {
+  margin-bottom: 0;
+}
+
+.paul-ai-chat-bubble-inner p {
+  margin: 0.25rem 0;
+}
+
+
 /* Nutzer-Bubble rechts, blau */
 .paul-ai-chat-bubble.from-user {
   align-self: flex-end;
@@ -353,6 +362,20 @@
   box-shadow: 0 8px 18px rgba(20, 31, 51, 0.12);
 }
 
+.paul-ai-chat-product-meta {
+  display: flex;
+  gap: 0.5rem;
+  align-items: baseline;
+  margin-top: 0.25rem;
+}
+
+.paul-ai-chat-product-number {
+  font-size: 0.75rem;
+  font-weight: 500;
+  opacity: 0.75;
+  white-space: nowrap;
+}
+
 .paul-ai-chat-product-name {
   font-size: .85rem;
   font-weight: 600;
@@ -400,3 +423,106 @@
 .paul-ai-chat-info-error {
   border-left-color: #d9534f;
 }
+
+/* ---------------------------------------------------------------------------
+   Formular (kind: "formular")
+   ------------------------------------------------------------------------ */
+.paul-ai-chat-formular {
+  border: 1px solid var(--paul-border);
+  border-radius: 10px;
+  margin: .6rem 0;
+  background: var(--paul-bg);
+}
+
+.paul-ai-chat-formular-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: .55rem .7rem;
+  cursor: pointer;
+  user-select: none;
+}
+
+.paul-ai-chat-formular-toggle {
+  font-size: .8rem;
+  opacity: .7;
+}
+
+.paul-ai-chat-formular-body {
+  padding: .6rem .7rem;
+}
+
+.paul-ai-chat-formular-title {
+  font-size: .9rem;
+  font-weight: 700;
+  margin-bottom: .35rem;
+  color: var(--paul-text);
+}
+
+.paul-ai-chat-formular-reason {
+  font-size: .75rem;
+  color: var(--paul-muted-text);
+  margin-bottom: .5rem;
+}
+
+.paul-ai-chat-formular-text {
+  font-size: .82rem;
+  color: var(--paul-muted-text);
+  margin-bottom: .6rem;
+  line-height: 1.35;
+}
+
+.paul-ai-chat-formular-row {
+  display: flex;
+  flex-direction: column;
+  gap: .25rem;
+  margin-bottom: .5rem;
+}
+
+.paul-ai-chat-formular-label {
+  font-size: .78rem;
+  font-weight: 600;
+  color: var(--paul-text);
+}
+
+.paul-ai-chat-formular-input {
+  border-radius: 8px;
+  border: 1px solid var(--paul-border);
+  padding: .45rem .6rem;
+  font-size: .85rem;
+  color: var(--paul-text);
+  background: #fff;
+}
+
+.paul-ai-chat-formular-input:focus {
+  outline: none;
+  border-color: var(--paul-primary);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--paul-primary) 20%, transparent);
+}
+
+.paul-ai-chat-formular-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: .25rem;
+}
+
+.paul-ai-chat-formular-submit {
+  height: 38px;
+  padding: 0 .9rem;
+  border-radius: 8px;
+  border: 1px solid var(--paul-primary);
+  background: var(--paul-primary);
+  color: #fff;
+  font-weight: 700;
+  font-size: .82rem;
+  cursor: pointer;
+}
+
+.paul-ai-chat-formular.is-collapsed .paul-ai-chat-formular-body {
+  display: none;
+}
+
+.paul-ai-chat-formular.is-done .paul-ai-chat-formular-header {
+  opacity: .7;
+}
+
