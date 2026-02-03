@@ -1,48 +1,50 @@
 # Paul AI Chat (Shopware 6 Plugin)
 
-Ein leichtgewichtiges Shopware-6-Plugin, das ein schwebendes AI-Chat-Widget in der Storefront bereitstellt. Es ergänzt die Storefront um eine konfigurierbare Chat-UI (via iFrame) sowie hilfreiche API-Endpunkte für Kontext-Token, Preisabfragen und ein Kontaktformular.
+A lightweight Shopware 6 plugin that adds a floating AI chat widget to the storefront. It provides a configurable chat UI (via iFrame) plus helpful API endpoints for context tokens, price lookups, and a contact form.
+
+> Note: The initial defaults in the plugin configuration are German (for example, the welcome message and button label). You can override all labels and texts in the Shopware admin.
 
 ## Features
 
-- Schwebendes Chat-Widget in der Storefront (per iFrame)
-- Konfigurierbare Begrüßungsnachricht, Button-Label und Position
-- Unterstützung für verschiedene LLM-Modelle (Ollama-Auswahl in der Plugin-Konfiguration)
-- API-Endpunkte:
-  - JWT-Kontext-Token für den Chat
-  - Preisabfrage für eingeloggte Kunden
-  - Kontaktformular mit Mailversand
+- Floating chat widget in the storefront (via iFrame)
+- Configurable welcome message, button label, and position
+- Support for multiple LLM models (selectable in plugin config)
+- API endpoints:
+  - JWT context token for the chat
+  - Price lookup for logged-in customers
+  - Contact form with email delivery
 
-## Anforderungen
+## Requirements
 
 - Shopware **6.7.x**
-- Konfigurierter Mailversand in Shopware (für das Kontaktformular)
-- Eine Chat-UI (Web-App) die via iFrame eingebettet werden kann
-- Umgebungsvariable `CHAT_AUTH_SECRET` für die JWT-Signierung
+- Configured mail delivery in Shopware (for the contact form)
+- A chat UI (web app) that can be embedded via iFrame
+- Environment variable `CHAT_AUTH_SECRET` for JWT signing
 
 ## Installation
 
-1. Plugin in den Shopware-Plugin-Ordner kopieren:
+1. Copy the plugin into the Shopware plugin directory:
    ```bash
    custom/plugins/PaulAiChat
    ```
-2. Plugin in der Administration installieren und aktivieren.
+2. Install and activate the plugin in the Shopware administration.
 
-## Konfiguration
+## Configuration
 
-In der Shopware-Administration unter **Einstellungen → Plugins → Paul AI Chat**:
+In the Shopware admin under **Settings → Plugins → Paul AI Chat**:
 
-- **Chat server URL (iframe)**: URL der Chat-UI (z. B. `https://your-chat-app.example/chat`)
-- **Ollama model**: Auswahlliste unterstützter Modelle
-- **Welcome message**: Begrüßungstext im Widget
-- **Auto-open on first visit?**: Öffnet das Widget automatisch
-- **Button label**: Beschriftung des Chat-Buttons
-- **Position**: `bottom-right` oder `bottom-left`
+- **Chat server URL (iframe)**: URL of the chat UI (e.g., `https://your-chat-app.example/chat`)
+- **Ollama model**: Select from the available models
+- **Welcome message**: Greeting text shown in the widget
+- **Auto-open on first visit?**: Automatically open the widget
+- **Button label**: Label for the chat button
+- **Position**: `bottom-right` or `bottom-left`
 
-Zusätzlich muss die Umgebungsvariable `CHAT_AUTH_SECRET` gesetzt werden (z. B. im Shopware-Container), damit der Kontext-Token-Endpunkt ein JWT signieren kann.
+Additionally, set the environment variable `CHAT_AUTH_SECRET` (e.g., in the Shopware container), so the context-token endpoint can sign JWTs.
 
-## Storefront-Integration
+## Storefront Integration
 
-Das Plugin hängt die Konfiguration in der Storefront an die Page-Extension `paulAiChat`. Dort finden sich die in der Administration gesetzten Werte:
+The plugin adds the configuration to the storefront page extension `paulAiChat`. The following values are exposed to the frontend:
 
 - `chatUrl`
 - `llmModel`
@@ -51,22 +53,22 @@ Das Plugin hängt die Konfiguration in der Storefront an die Page-Extension `pau
 - `buttonLabel`
 - `position`
 
-## API-Endpunkte
+## API Endpoints
 
-### Kontext-Token
+### Context Token
 
 `GET /paul-ai-chat/context-token`
 
-Antwort:
+Response:
 ```json
 { "token": "<jwt>" }
 ```
 
-- Das JWT enthält u. a. `salesChannelId`, `loggedIn` und (falls vorhanden) die Kunden-ID.
-- Token ist **60 Sekunden** gültig.
-- Erfordert die Umgebungsvariable `CHAT_AUTH_SECRET`.
+- The JWT includes `salesChannelId`, `loggedIn`, and (if present) the customer ID.
+- Token validity is **60 seconds**.
+- Requires the `CHAT_AUTH_SECRET` environment variable.
 
-### Preisabfrage (nur eingeloggte Kunden)
+### Price Lookup (logged-in customers only)
 
 `POST /paul-ai-chat/prices`
 
@@ -75,12 +77,12 @@ Request:
 { "productIds": ["<product-id>", "<product-id>"] }
 ```
 
-Antwort (auszug):
+Response (excerpt):
 ```json
 {
   "prices": {
     "<product-id>": {
-      "name": "Produktname",
+      "name": "Product name",
       "calculatedPrice": {
         "unitPrice": 99.0,
         "totalPrice": 99.0,
@@ -101,37 +103,37 @@ Antwort (auszug):
 }
 ```
 
-### Kontaktformular
+### Contact Form
 
 `POST /paul-ai-chat/contact`
 
-Request (JSON oder Form-Data):
+Request (JSON or form-data):
 ```json
 {
   "name": "Max Mustermann",
   "email": "max@example.com",
   "phone": "+49 123 456",
-  "company": "Beispiel GmbH",
-  "message": "Ich habe eine Frage...",
+  "company": "Example GmbH",
+  "message": "I have a question...",
   "productRef": "SKU-123",
   "quantity": "10",
   "deliveryZip": "10115"
 }
 ```
 
-Antwort:
+Response:
 ```json
 { "success": true }
 ```
 
-## Hinweise zur Chat-UI
+## Notes on the Chat UI
 
-Die Chat-UI wird **nicht** von diesem Plugin mitgeliefert. Sie muss separat bereitgestellt werden und kann die Shopware-Endpunkte nutzen:
+The chat UI is **not** included in this plugin. It must be provided separately and can use these Shopware endpoints:
 
-- `context-token`, um einen kurzlebigen JWT zu erhalten
-- `prices`, um Preise des eingeloggten Kunden abzufragen
-- `contact`, um Anfragen an den Shopbetreiber zu senden
+- `context-token` to retrieve a short-lived JWT
+- `prices` to fetch logged-in customer prices
+- `contact` to send inquiries to the shop owner
 
-## Lizenz
+## License
 
 MIT
