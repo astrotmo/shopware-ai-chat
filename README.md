@@ -126,14 +126,6 @@ Response:
 { "success": true }
 ```
 
-## Notes on the Chat UI
-
-The chat UI is **not** included in this plugin. It must be provided separately and can use these Shopware endpoints:
-
-- `context-token` to retrieve a short-lived JWT
-- `prices` to fetch logged-in customer prices
-- `contact` to send inquiries to the shop owner
-
 ## License
 
 MIT
