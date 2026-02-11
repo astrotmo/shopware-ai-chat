@@ -515,7 +515,7 @@ export default class AiChatPlugin extends Base {
         this.debugLog('Rendering product list block', block);
 
         const clientContext = this.getClientContext();
-        const fullBaseUrl = clientContext.fullBaseUrl;
+        const origin = clientContext.origin;
 
         const container = document.createElement('div');
         container.className = 'paul-ai-chat-product-list';
@@ -532,6 +532,18 @@ export default class AiChatPlugin extends Base {
 
         const products = Array.isArray(block.products) ? block.products : [];
 
+        const stdPriceHint = 'Dies ist der Standardpreis.'
+        const advPriceHint = 'Dies ist ihr persönlich reduzierter Preis.'
+
+        const setPriceDisplay = (el, formattedPrice, isAdvancedPrice) => {
+            el.textContent = `${formattedPrice} *`;
+            el.style.display = '';
+            el.dataset.priceHint = isAdvancedPrice ? advPriceHint : stdPriceHint;
+            el.classList.toggle('is-advanced-price', isAdvancedPrice);
+            el.classList.toggle('is-standard-price', !isAdvancedPrice);
+            el.setAttribute('aria-label', el.dataset.priceHint);
+        };
+
         // Keep references to price elements so we can update later
         const priceElsById = new Map();
         
@@ -540,7 +552,7 @@ export default class AiChatPlugin extends Base {
 
             const card = document.createElement('a');
             card.className = 'paul-ai-chat-product-card';
-            card.href = fullBaseUrl + "/detail/" + p.id;
+            card.href = origin + "/detail/" + p.id;
             card.target = '_self';
 
             const nameEl = document.createElement('div');
@@ -554,7 +566,7 @@ export default class AiChatPlugin extends Base {
             if (p.productNumber) {
                 const numberEl = document.createElement('span');
                 numberEl.className = 'paul-ai-chat-product-number';
-                numberEl.textContent = p.productNumber;
+                numberEl.textContent = "Art. " + p.productNumber;
                 metaEl.appendChild(numberEl);
             }
 
@@ -572,6 +584,14 @@ export default class AiChatPlugin extends Base {
             }
 
             metaEl.appendChild(priceEl);
+
+            if (p.purchaseUnit) {
+                const unitEl = document.createElement('span');
+                unitEl.className = 'paul-ai-chat-product-unit';
+                unitEl.textContent = ` / ${p.purchaseUnit}`;
+                metaEl.appendChild(unitEl);
+            }
+
             card.appendChild(metaEl);
 
             priceElsById.set(p.id, priceEl);
@@ -603,14 +623,20 @@ export default class AiChatPlugin extends Base {
                 let price = null;
 
                 const tiers = Array.isArray(prod.calculatedPrices) ? prod.calculatedPrices : [];
+                let isAdvancedPrice = false;
+
                 if (tiers.length > 0) {
                     // prefer quantity=1 tier, else first tier with unitPrice
                     const q1 = tiers.find(t => t && t.quantity === 1 && typeof t.unitPrice === 'number');
                     if (q1) {
                         price = q1.unitPrice;
+                        isAdvancedPrice = true;
                     } else {
                         const any = tiers.find(t => t && typeof t.unitPrice === 'number');
-                        if (any) price = any.unitPrice;
+                        if (any) {
+                            price = any.unitPrice;
+                            isAdvancedPrice = true;
+                        };
                     }
                 }
 
@@ -630,8 +656,7 @@ export default class AiChatPlugin extends Base {
                     currency: 'EUR', // If you want dynamic currency, send currency ISO from backend
                 }).format(price);
 
-                el.textContent = formatted;
-                el.style.display = '';
+                setPriceDisplay(el, formatted, isAdvancedPrice);
             }
             this.scrollMessagesToEnd();
         });
